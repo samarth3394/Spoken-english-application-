@@ -1,20 +1,28 @@
 """
-Aspire English Hub - AI Service
-================================
-OpenAI integration for Whisper (STT), GPT (conversation), and TTS.
+Aspire English Hub - AI Service (Gemini Edition)
+=================================================
+Google Gemini API integration for Multimodal Speech-to-Text (STT), Chat, 
+Speech Analysis, Content Moderation, and free Google TTS (gTTS) for Speech Synthesis.
 """
 
 from config import settings
-from openai import AsyncOpenAI
+import google.generativeai as genai
+from gtts import gTTS
 from fastapi import HTTPException, UploadFile
 import logging
 import json
+import io
 from typing import Optional, List, Dict
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-client = AsyncOpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+# Configure Gemini API
+if settings.gemini_api_key:
+    genai.configure(api_key=settings.gemini_api_key)
+    logger.info("✅ Gemini API successfully configured")
+else:
+    logger.warning("⚠️ Gemini API Key is missing. AI features will not work.")
 
 # System prompts for different AI modes
 SYSTEM_PROMPTS = {
@@ -45,142 +53,159 @@ SYSTEM_PROMPTS = {
 
 
 class AIService:
-    """AI service for speech-to-text, conversation, and text-to-speech."""
+    """AI service powered by Google Gemini and gTTS."""
 
     @staticmethod
     async def speech_to_text(audio_file: UploadFile) -> dict:
-        """Convert speech to text using Whisper."""
-        if not client:
-            raise HTTPException(status_code=503, detail="AI service not configured")
+        """Convert speech to text using Gemini's native audio understanding."""
+        if not settings.gemini_api_key:
+            raise HTTPException(status_code=503, detail="Gemini AI service not configured")
         try:
-            transcript = await client.audio.transcriptions.create(
-                model="whisper-1",
-                file=(audio_file.filename, await audio_file.read(), audio_file.content_type),
-                response_format="verbose_json"
-            )
+            audio_bytes = await audio_file.read()
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            
+            contents = [
+                {
+                    "mime_type": audio_file.content_type or "audio/webm",
+                    "data": audio_bytes
+                },
+                "Transcribe this English audio speech accurately. Return ONLY the transcription text. Do not add any greetings, preamble, explanation, or notes. If the audio is silent or completely unintelligible, return an empty string."
+            ]
+            
+            # Using async generation
+            response = await model.generate_content_async(contents)
+            text = response.text.strip() if response.text else ""
+            
             return {
-                "text": transcript.text,
-                "language": getattr(transcript, "language", "en"),
-                "duration": getattr(transcript, "duration", 0),
-                "words": getattr(transcript, "words", [])
+                "text": text,
+                "language": "en",
+                "duration": 0,
+                "words": []
             }
         except Exception as e:
-            logger.error(f"STT error: {str(e)}")
+            logger.error(f"Gemini STT error: {str(e)}")
             raise HTTPException(status_code=500, detail="Speech recognition failed")
 
     @staticmethod
     async def get_ai_response(messages: List[Dict], mode: str = "casual", topic: str = None) -> dict:
-        """Get GPT response for conversation."""
-        if not client:
-            raise HTTPException(status_code=503, detail="AI service not configured")
+        """Get Gemini response for conversation."""
+        if not settings.gemini_api_key:
+            raise HTTPException(status_code=503, detail="Gemini AI service not configured")
         try:
             system_prompt = SYSTEM_PROMPTS.get(mode, SYSTEM_PROMPTS["casual"])
             if topic and mode == "topic_based":
                 system_prompt += f"\n\nCurrent topic: {topic}"
 
-            chat_messages = [{"role": "system", "content": system_prompt}] + messages
+            # Format the conversation history for Gemini (roles: 'user' or 'model')
+            formatted_history = []
+            for m in messages[:-1]:
+                role = 'user' if m['role'] == 'user' else 'model'
+                formatted_history.append({'role': role, 'parts': [m['content']]})
 
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=chat_messages,
-                max_tokens=200,
-                temperature=0.8
+            # Create Gemini chat session with system instruction
+            model = genai.GenerativeModel(
+                model_name='gemini-1.5-flash',
+                system_instruction=system_prompt
             )
+            chat = model.start_chat(history=formatted_history)
 
-            reply = response.choices[0].message.content
-            return {"reply": reply, "usage": {"tokens": response.usage.total_tokens if response.usage else 0}}
+            # Send the latest user message
+            last_msg = messages[-1]['content']
+            response = await chat.send_message_async(last_msg)
+            
+            return {"reply": response.text.strip(), "usage": {"tokens": 0}}
         except Exception as e:
-            logger.error(f"GPT error: {str(e)}")
+            logger.error(f"Gemini Chat error: {str(e)}")
             raise HTTPException(status_code=500, detail="AI response failed")
 
     @staticmethod
     async def text_to_speech(text: str, voice: str = "alloy") -> bytes:
-        """Convert text to speech using OpenAI TTS."""
-        if not client:
-            raise HTTPException(status_code=503, detail="AI service not configured")
+        """Convert text to speech using completely free Google TTS (gTTS)."""
         try:
-            response = await client.audio.speech.create(
-                model="tts-1",
-                voice=voice,
-                input=text,
-                response_format="mp3"
-            )
-            return response.content
+            # Generate high-quality speech synthesis from Google's TTS engine
+            tts = gTTS(text=text, lang='en', slow=False)
+            fp = io.BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            return fp.read()
         except Exception as e:
-            logger.error(f"TTS error: {str(e)}")
+            logger.error(f"gTTS Speech synthesis error: {str(e)}")
             raise HTTPException(status_code=500, detail="Speech synthesis failed")
 
     @staticmethod
     async def analyze_speech(text: str) -> dict:
-        """Analyze speech for grammar, fluency, vocabulary, and provide feedback."""
-        if not client:
-            return {"error": "AI not configured"}
+        """Analyze speech for grammar, fluency, vocabulary, and provide feedback using Gemini's JSON Mode."""
+        if not settings.gemini_api_key:
+            return {"error": "Gemini AI not configured"}
         try:
-            analysis_prompt = f"""Analyze this English speech and return a JSON object with:
-            - pronunciation_score (0-100)
-            - grammar_score (0-100)
-            - fluency_score (0-100)
-            - vocabulary_score (0-100)
-            - confidence_score (0-100)
-            - overall_score (0-100)
-            - filler_words (list of filler words found like "um", "uh", "like")
-            - grammar_errors (list of {{error, correction, explanation}})
-            - vocabulary_suggestions (list of advanced word alternatives)
-            - improvement_tips (list of 3 specific tips)
-            - words_per_minute (estimated)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = f"""Analyze this English speech and return a JSON object with:
+            - pronunciation_score (integer between 0 and 100)
+            - grammar_score (integer between 0 and 100)
+            - fluency_score (integer between 0 and 100)
+            - vocabulary_score (integer between 0 and 100)
+            - confidence_score (integer between 0 and 100)
+            - overall_score (integer between 0 and 100)
+            - filler_words (list of strings representing filler words found, e.g., "um", "uh", "like")
+            - grammar_errors (list of objects with keys: error, correction, explanation)
+            - vocabulary_suggestions (list of strings containing advanced word alternatives)
+            - improvement_tips (list of 3 specific tips as strings)
+            - words_per_minute (integer estimating the speaking rate)
             
             Speech text: "{text}"
-            
-            Return ONLY valid JSON, no markdown."""
+            """
 
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": analysis_prompt}],
-                max_tokens=800,
-                temperature=0.3
+            response = await model.generate_content_async(
+                prompt,
+                generation_config={"response_mime_type": "application/json"}
             )
-
-            result = response.choices[0].message.content.strip()
-            if result.startswith("```"):
-                result = result.split("\n", 1)[1].rsplit("```", 1)[0]
-            return json.loads(result)
+            
+            return json.loads(response.text)
         except json.JSONDecodeError:
             return {"overall_score": 70, "improvement_tips": ["Keep practicing!"]}
         except Exception as e:
-            logger.error(f"Analysis error: {str(e)}")
+            logger.error(f"Gemini Analysis error: {str(e)}")
             return {"error": str(e)}
 
     @staticmethod
     async def generate_topic() -> dict:
         """Generate a random conversation topic."""
-        if not client:
+        if not settings.gemini_api_key:
             return {"topic": "Tell me about your favorite hobby", "category": "general"}
         try:
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": 
-                    "Generate 1 interesting English conversation topic. Return JSON: {\"topic\": \"...\", \"category\": \"general|interview|debate|ielts\", \"prompts\": [\"question1\", \"question2\"]}. Return ONLY JSON."}],
-                max_tokens=150, temperature=1.0
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = "Generate 1 interesting English conversation topic. Return a JSON object with keys: topic (string), category (string: 'general', 'interview', 'debate', or 'ielts'), prompts (list of strings for follow-up questions)."
+            
+            response = await model.generate_content_async(
+                prompt,
+                generation_config={"response_mime_type": "application/json"}
             )
-            result = response.choices[0].message.content.strip()
-            if result.startswith("```"):
-                result = result.split("\n", 1)[1].rsplit("```", 1)[0]
-            return json.loads(result)
+            
+            return json.loads(response.text)
         except Exception:
             return {"topic": "What are your goals for the future?", "category": "general", "prompts": []}
 
     @staticmethod
     async def detect_toxic_content(text: str) -> dict:
-        """Check text for toxic or inappropriate content."""
-        if not client:
+        """Check text for toxic or inappropriate content using Gemini's structured response."""
+        if not settings.gemini_api_key:
             return {"is_toxic": False}
         try:
-            response = await client.moderations.create(input=text)
-            result = response.results[0]
-            return {
-                "is_toxic": result.flagged,
-                "categories": {k: v for k, v in result.categories.__dict__.items() if v}
-            }
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = f"""Analyze this text and check if it contains toxic, highly offensive, hateful, self-harm, sexual, or extremely inappropriate content.
+            Return a JSON object with keys:
+            - is_toxic (boolean)
+            - categories (object containing boolean fields indicating flag categories if any)
+            
+            Text to analyze: "{text}"
+            """
+            
+            response = await model.generate_content_async(
+                prompt,
+                generation_config={"response_mime_type": "application/json"}
+            )
+            
+            return json.loads(response.text)
         except Exception:
             return {"is_toxic": False}
 

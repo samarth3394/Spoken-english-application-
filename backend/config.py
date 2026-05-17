@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
     supabase_jwt_secret: str = ""
     
-    # OpenAI
-    openai_api_key: str = ""
+    # Gemini
+    gemini_api_key: str = ""
     
     # URLs
     frontend_url: str = "http://localhost:3000"
