@@ -5,7 +5,7 @@ Handles WebRTC signaling (offer/answer/ICE candidates) over WebSockets.
 """
 
 from fastapi import WebSocket, WebSocketDisconnect
-from websockets.manager import manager
+from socket_handlers.manager import manager
 from services.matching_service import matching_service
 from services.call_service import call_service
 from services.auth_service import auth_service

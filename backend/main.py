@@ -15,7 +15,7 @@ import logging
 
 from config import settings
 from routers import auth, students, admin, ai, matching, calls
-from websockets.signaling import handle_websocket
+from socket_handlers.signaling import handle_websocket
 
 # Configure logging
 logging.basicConfig(
