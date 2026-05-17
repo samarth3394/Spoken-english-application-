@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Call - Aspire English Hub</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <div class="page">
+        <div class="call-screen" id="call-screen">
+            <div class="call-avatar" id="call-avatar">🎤</div>
+            <div class="call-status" id="call-status">Connecting...</div>
+            <div class="call-timer" id="call-timer">00:00</div>
+            <div class="call-controls">
+                <button class="call-btn call-btn-mute" id="mute-btn" title="Mute/Unmute">🎤</button>
+                <button class="call-btn call-btn-end" id="end-btn" title="End Call">📞</button>
+            </div>
+            <div id="call-subtitles" style="margin-top:2rem;padding:1rem;background:var(--surface);border-radius:var(--radius-sm);max-width:500px;min-height:60px;color:var(--text2);font-style:italic;text-align:center;display:none;">
+                <p id="subtitle-text">Listening...</p>
+            </div>
+        </div>
+
+        <!-- Post-call rating -->
+        <div id="rating-screen" style="display:none;" class="call-screen">
+            <div style="font-size:4rem;margin-bottom:1rem;">✅</div>
+            <h2>Call Ended</h2>
+            <p style="color:var(--text2);margin:0.5rem 0;">Duration: <span id="final-duration">00:00</span></p>
+            <div style="margin:2rem 0;">
+                <p style="margin-bottom:1rem;">Rate this conversation:</p>
+                <div id="rating-stars" style="display:flex;gap:8px;justify-content:center;font-size:2rem;cursor:pointer;">
+                    <span data-rating="1">⭐</span><span data-rating="2">⭐</span><span data-rating="3">⭐</span><span data-rating="4">⭐</span><span data-rating="5">⭐</span>
+                </div>
+            </div>
+            <div style="display:flex;gap:1rem;">
+                <a href="waiting-room.html" class="btn btn-primary">Find New Partner</a>
+                <a href="dashboard.html" class="btn btn-secondary">Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <audio id="remote-audio" autoplay></audio>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/websocket.js"></script>
+    <script src="../js/webrtc.js"></script>
+    <script>
+        if (!Auth.requireAuth()) throw new Error('Not auth');
+
+        const params = new URLSearchParams(window.location.search);
+        const callId = params.get('callId');
+        const isCaller = params.get('caller') === 'true';
+
+        if (!callId) { window.location.href = 'waiting-room.html'; throw new Error('No call ID'); }
+
+        const statusEl = document.getElementById('call-status');
+        const timerEl = document.getElementById('call-timer');
+        const muteBtn = document.getElementById('mute-btn');
+        let isMuted = false;
+
+        // Connect WebSocket first
+        WS.connect();
+
+        // Start call
+        setTimeout(async () => {
+            try {
+                if (isCaller) {
+                    await WebRTCHandler.createOffer(callId);
+                    statusEl.textContent = 'Calling...';
+                } else {
+                    statusEl.textContent = 'Incoming call...';
+                }
+            } catch (err) {
+                statusEl.textContent = 'Connection failed';
+                Utils.showToast('Failed to start call: ' + err.message, 'error');
+            }
+        }, 1000);
+
+        // WebRTC events
+        WebRTCHandler.on('remoteStream', (stream) => {
+            document.getElementById('remote-audio').srcObject = stream;
+            statusEl.textContent = 'Connected 🟢';
+        });
+
+        WebRTCHandler.on('connectionState', (state) => {
+            const labels = { connecting: 'Connecting...', connected: 'Connected 🟢', disconnected: 'Reconnecting...', failed: 'Connection lost' };
+            statusEl.textContent = labels[state] || state;
+        });
+
+        WebRTCHandler.on('timerUpdate', (seconds) => {
+            timerEl.textContent = WebRTCHandler.formatTime(seconds);
+        });
+
+        WebRTCHandler.on('callEnded', (data) => {
+            document.getElementById('call-screen').style.display = 'none';
+            document.getElementById('rating-screen').style.display = 'flex';
+            document.getElementById('final-duration').textContent = timerEl.textContent;
+        });
+
+        // Mute toggle
+        muteBtn.addEventListener('click', () => {
+            isMuted = WebRTCHandler.toggleMute();
+            muteBtn.textContent = isMuted ? '🔇' : '🎤';
+            muteBtn.classList.toggle('muted', isMuted);
+        });
+
+        // End call
+        document.getElementById('end-btn').addEventListener('click', () => {
+            WebRTCHandler.endCall();
+        });
+
+        // Rating
+        document.querySelectorAll('#rating-stars span').forEach(star => {
+            star.addEventListener('click', async () => {
+                const rating = parseInt(star.dataset.rating);
+                document.querySelectorAll('#rating-stars span').forEach((s, i) => {
+                    s.style.opacity = i < rating ? '1' : '0.3';
+                });
+                try {
+                    await API.post(`/api/students/calls/${callId}/rate`, { rating });
+                    Utils.showToast('Thanks for your feedback!', 'success');
+                } catch (e) {}
+            });
+        });
+
+        // Cleanup on page leave
+        window.addEventListener('beforeunload', () => { WebRTCHandler.cleanup(); });
+    </script>
+</body>
+</html>

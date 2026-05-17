@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiting Room - Aspire English Hub</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="../index.html" class="nav-brand"><span class="logo-icon">🎙️</span><span>Aspire <span class="gradient-text">English Hub</span></span></a>
+        <div class="nav-links"><a href="dashboard.html" class="nav-link">← Dashboard</a><div id="auth-links"></div></div>
+    </nav>
+
+    <div class="page">
+        <div class="container">
+            <!-- Idle State -->
+            <div id="state-idle" class="waiting-room animate-in">
+                <div style="font-size:5rem;margin-bottom:2rem;">🎤</div>
+                <h2>Ready to Practice?</h2>
+                <p style="color:var(--text2);max-width:400px;margin:1rem auto 2rem;">You'll be matched with a student from a different batch. Your identity stays anonymous.</p>
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;">
+                    <button class="btn btn-primary btn-lg" id="find-partner-btn">🎯 Find Speaking Partner</button>
+                    <a href="ai-practice.html" class="btn btn-secondary btn-lg">🤖 Practice with AI</a>
+                </div>
+                <div class="grid grid-3" style="margin-top:3rem;max-width:500px;">
+                    <div class="stat-card"><div class="stat-value" id="online-count">0</div><div class="stat-label">Online Now</div></div>
+                    <div class="stat-card"><div class="stat-value" id="queue-count">0</div><div class="stat-label">In Queue</div></div>
+                    <div class="stat-card"><div class="stat-value" id="calls-active">0</div><div class="stat-label">Active Calls</div></div>
+                </div>
+            </div>
+
+            <!-- Searching State -->
+            <div id="state-searching" class="waiting-room" style="display:none;">
+                <div class="waiting-animation"></div>
+                <h2>Finding a Speaking Partner...</h2>
+                <p class="queue-info">Matching you with a student from a different batch</p>
+                <p style="color:var(--text3);margin-top:0.5rem;font-size:0.9rem;">Position in queue: <span id="queue-position">1</span></p>
+                <button class="btn btn-secondary" id="cancel-search-btn" style="margin-top:2rem;">Cancel Search</button>
+            </div>
+
+            <!-- Matched State -->
+            <div id="state-matched" class="waiting-room" style="display:none;">
+                <div style="font-size:5rem;margin-bottom:1rem;">🎉</div>
+                <h2 class="gradient-text">Partner Found!</h2>
+                <p style="color:var(--text2);margin:1rem 0 2rem;">Connecting you now...</p>
+                <div class="spinner" style="width:40px;height:40px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/websocket.js"></script>
+    <script src="../js/webrtc.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        if (!Auth.requireAuth()) throw new Error('Not auth');
+
+        const states = { idle: document.getElementById('state-idle'), searching: document.getElementById('state-searching'), matched: document.getElementById('state-matched') };
+
+        function showState(name) {
+            Object.values(states).forEach(s => s.style.display = 'none');
+            states[name].style.display = 'flex';
+        }
+
+        // Load online stats
+        async function loadStats() {
+            try {
+                const data = await API.get('/api/students/online-count');
+                document.getElementById('online-count').textContent = data.online_count || 0;
+                document.getElementById('queue-count').textContent = data.queue_count || 0;
+            } catch (e) {}
+        }
+        loadStats();
+        setInterval(loadStats, 15000);
+
+        // Find partner
+        document.getElementById('find-partner-btn').addEventListener('click', async () => {
+            showState('searching');
+            try {
+                WS.send('join_queue', {});
+            } catch (err) {
+                Utils.showToast(err.message || 'Failed to join queue', 'error');
+                showState('idle');
+            }
+        });
+
+        // Cancel search
+        document.getElementById('cancel-search-btn').addEventListener('click', () => {
+            WS.send('leave_queue', {});
+            showState('idle');
+            Utils.showToast('Search cancelled', 'info');
+        });
+
+        // WebSocket events
+        WS.connect();
+
+        WS.on('queue_status', (data) => {
+            if (data.status === 'waiting') {
+                showState('searching');
+                document.getElementById('queue-position').textContent = data.position || '...';
+            } else if (data.status === 'matched') {
+                showState('matched');
+            } else if (data.status === 'cancelled') {
+                showState('idle');
+            }
+        });
+
+        WS.on('match_found', (data) => {
+            showState('matched');
+            Utils.showToast('Partner found! Connecting...', 'success');
+            setTimeout(() => {
+                window.location.href = `voice-call.html?callId=${data.call_id}&caller=${data.is_caller}`;
+            }, 1500);
+        });
+    </script>
+</body>
+</html>

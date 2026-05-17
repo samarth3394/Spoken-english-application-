@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Practice - Aspire English Hub</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <style>
+        .chat-container { display:flex; flex-direction:column; height:calc(100vh - 200px); max-width:800px; margin:0 auto; }
+        .chat-messages { flex:1; overflow-y:auto; padding:1rem; display:flex; flex-direction:column; gap:12px; }
+        .chat-msg { max-width:80%; padding:14px 18px; border-radius:var(--radius); font-size:0.95rem; line-height:1.5; animation:fadeIn 0.3s ease; }
+        .msg-user { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
+        .msg-ai { align-self:flex-start; background:var(--surface2); border-bottom-left-radius:4px; }
+        .msg-system { align-self:center; background:transparent; color:var(--text3); font-size:0.85rem; font-style:italic; }
+        .chat-input-area { display:flex; gap:12px; padding:1rem; background:var(--glass); border-top:1px solid var(--glass-border); border-radius:0 0 var(--radius) var(--radius); }
+        .chat-input-area input { flex:1; }
+        .mode-selector { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1.5rem; }
+        .mode-btn { padding:10px 20px; border-radius:50px; border:1px solid var(--glass-border); background:var(--surface); color:var(--text2); font-weight:500; font-size:0.85rem; cursor:pointer; transition:var(--transition); }
+        .mode-btn:hover, .mode-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+        .ai-scores { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin-top:1rem; }
+        .score-item { text-align:center; padding:16px; background:var(--surface); border-radius:var(--radius-sm); }
+        .score-num { font-size:1.5rem; font-weight:800; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="../index.html" class="nav-brand"><span class="logo-icon">🎙️</span><span>Aspire <span class="gradient-text">English Hub</span></span></a>
+        <div class="nav-links"><a href="dashboard.html" class="nav-link">← Dashboard</a></div>
+    </nav>
+
+    <div class="page">
+        <div class="container">
+            <!-- Setup Screen -->
+            <div id="setup-screen" class="animate-in">
+                <div class="page-header" style="text-align:center;">
+                    <h2>🤖 AI Speaking Partner</h2>
+                    <p style="color:var(--text2);">Choose a conversation mode to begin</p>
+                </div>
+                <div class="mode-selector" style="justify-content:center;">
+                    <button class="mode-btn active" data-mode="casual">💬 Casual</button>
+                    <button class="mode-btn" data-mode="interview">💼 Interview</button>
+                    <button class="mode-btn" data-mode="ielts">📝 IELTS</button>
+                    <button class="mode-btn" data-mode="debate">⚔️ Debate</button>
+                    <button class="mode-btn" data-mode="topic_based">📚 Topic</button>
+                </div>
+                <div id="topic-input" style="display:none;max-width:400px;margin:1rem auto;">
+                    <input type="text" id="topic-field" placeholder="Enter a topic (e.g., Climate Change)">
+                </div>
+                <div style="text-align:center;margin-top:2rem;">
+                    <button class="btn btn-primary btn-lg" id="start-session-btn">🎤 Start Conversation</button>
+                </div>
+            </div>
+
+            <!-- Chat Screen -->
+            <div id="chat-screen" style="display:none;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+                    <div><h3>🤖 AI Partner <span class="badge badge-primary" id="mode-badge">Casual</span></h3></div>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <span id="session-timer" style="font-variant-numeric:tabular-nums;color:var(--text2);">00:00</span>
+                        <button class="btn btn-danger btn-sm" id="end-session-btn">End Session</button>
+                    </div>
+                </div>
+                <div class="card" style="padding:0;overflow:hidden;">
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chat-messages"></div>
+                        <div class="chat-input-area">
+                            <button class="btn btn-icon btn-secondary" id="voice-input-btn" title="Voice input">🎤</button>
+                            <input type="text" id="chat-input" placeholder="Type your message...">
+                            <button class="btn btn-primary btn-sm" id="send-btn">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Screen -->
+            <div id="results-screen" style="display:none;">
+                <div style="text-align:center;margin-bottom:2rem;">
+                    <div style="font-size:4rem;">🎉</div>
+                    <h2>Session Complete!</h2>
+                    <p style="color:var(--text2);">Here's your performance analysis</p>
+                </div>
+                <div class="ai-scores" id="score-cards"></div>
+                <div class="card" style="margin-top:2rem;" id="feedback-card"></div>
+                <div style="display:flex;gap:1rem;justify-content:center;margin-top:2rem;">
+                    <button class="btn btn-primary" onclick="location.reload()">Practice Again</button>
+                    <a href="dashboard.html" class="btn btn-secondary">Back to Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/utils.js"></script>
+    <script>
+        if (!Auth.requireAuth()) throw new Error('Not auth');
+
+        let selectedMode = 'casual';
+        let sessionId = null;
+        let timerInterval = null;
+        let timerSeconds = 0;
+
+        // Mode selection
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedMode = btn.dataset.mode;
+                document.getElementById('topic-input').style.display = selectedMode === 'topic_based' ? 'block' : 'none';
+            });
+        });
+
+        // Start session
+        document.getElementById('start-session-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('start-session-btn');
+            Utils.showLoading(btn, 'Starting...');
+            try {
+                const topic = selectedMode === 'topic_based' ? document.getElementById('topic-field').value : null;
+                const data = await API.post('/api/ai/sessions/start', { mode: selectedMode, topic });
+                sessionId = data.session_id;
+                document.getElementById('setup-screen').style.display = 'none';
+                document.getElementById('chat-screen').style.display = 'block';
+                document.getElementById('mode-badge').textContent = selectedMode.replace('_', ' ');
+                addMessage('system', `AI conversation started in ${selectedMode} mode. Say hello!`);
+                startTimer();
+
+                // Get AI greeting
+                const greeting = await API.post('/api/ai/sessions/' + sessionId + '/chat', { session_id: sessionId, message: 'Hello! Please start the conversation.' });
+                if (greeting.reply) addMessage('ai', greeting.reply);
+            } catch (err) {
+                Utils.showToast(err.message || 'Failed to start', 'error');
+                Utils.hideLoading(btn);
+            }
+        });
+
+        // Send message
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg || !sessionId) return;
+            input.value = '';
+            addMessage('user', msg);
+
+            try {
+                const data = await API.post('/api/ai/sessions/' + sessionId + '/chat', { session_id: sessionId, message: msg });
+                if (data.reply) addMessage('ai', data.reply);
+            } catch (err) {
+                addMessage('system', 'AI is having trouble responding. Try again.');
+            }
+        }
+
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+        document.getElementById('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+        // Voice input
+        let mediaRecorder = null;
+        let audioChunks = [];
+        const voiceBtn = document.getElementById('voice-input-btn');
+
+        voiceBtn.addEventListener('click', async () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                voiceBtn.textContent = '🎤';
+                voiceBtn.style.background = '';
+                return;
+            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    stream.getTracks().forEach(t => t.stop());
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const formData = new FormData();
+                    formData.append('audio', blob, 'recording.webm');
+                    try {
+                        addMessage('system', 'Processing your speech...');
+                        const result = await API.upload('/api/ai/speech-to-text', formData);
+                        if (result.text) {
+                            document.getElementById('chat-input').value = result.text;
+                            sendMessage();
+                        }
+                    } catch (e) { Utils.showToast('Speech recognition failed', 'error'); }
+                };
+                mediaRecorder.start();
+                voiceBtn.textContent = '⏹️';
+                voiceBtn.style.background = 'var(--danger)';
+            } catch (e) { Utils.showToast('Microphone access required', 'error'); }
+        });
+
+        // End session
+        document.getElementById('end-session-btn').addEventListener('click', async () => {
+            stopTimer();
+            try {
+                const result = await API.post('/api/ai/sessions/' + sessionId + '/end');
+                document.getElementById('chat-screen').style.display = 'none';
+                document.getElementById('results-screen').style.display = 'block';
+                showResults(result.analysis || {});
+            } catch (err) {
+                Utils.showToast('Error ending session', 'error');
+                window.location.href = 'dashboard.html';
+            }
+        });
+
+        function addMessage(type, text) {
+            const msgs = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `chat-msg msg-${type}`;
+            div.textContent = text;
+            msgs.appendChild(div);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function startTimer() {
+            timerSeconds = 0;
+            timerInterval = setInterval(() => {
+                timerSeconds++;
+                const m = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+                const s = String(timerSeconds % 60).padStart(2, '0');
+                document.getElementById('session-timer').textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopTimer() { if (timerInterval) clearInterval(timerInterval); }
+
+        function showResults(analysis) {
+            const fields = [
+                { key: 'pronunciation_score', label: '🗣️ Pronunciation', color: '#6C63FF' },
+                { key: 'grammar_score', label: '📝 Grammar', color: '#43E97B' },
+                { key: 'fluency_score', label: '💬 Fluency', color: '#FA709A' },
+                { key: 'vocabulary_score', label: '📚 Vocabulary', color: '#FFBE0B' },
+                { key: 'confidence_score', label: '💪 Confidence', color: '#4FC3F7' },
+                { key: 'overall_score', label: '⭐ Overall', color: '#F093FB' }
+            ];
+            const cards = document.getElementById('score-cards');
+            cards.innerHTML = fields.map(f => {
+                const val = analysis[f.key] || 0;
+                return `<div class="score-item"><div class="score-num" style="color:${f.color}">${Math.round(val)}</div><div style="font-size:0.8rem;color:var(--text2);margin-top:4px;">${f.label}</div></div>`;
+            }).join('');
+
+            const fb = document.getElementById('feedback-card');
+            const tips = analysis.improvement_tips || ['Keep practicing daily!'];
+            const errors = analysis.grammar_errors || [];
+            fb.innerHTML = `<h3>💡 Improvement Tips</h3><ul style="margin-top:1rem;padding-left:1.2rem;color:var(--text2);display:flex;flex-direction:column;gap:8px;">${tips.map(t => `<li>${t}</li>`).join('')}</ul>` +
+                (errors.length ? `<h3 style="margin-top:1.5rem;">📝 Grammar Notes</h3><div style="margin-top:0.5rem;">${errors.slice(0, 5).map(e => `<div style="padding:8px;background:var(--surface);border-radius:var(--radius-xs);margin-top:8px;font-size:0.9rem;"><strong style="color:var(--danger);">${e.error || ''}</strong> → <strong style="color:var(--accent);">${e.correction || ''}</strong><br><span style="color:var(--text3);font-size:0.8rem;">${e.explanation || ''}</span></div>`).join('')}</div>` : '');
+        }
+    </script>
+</body>
+</html>

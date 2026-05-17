@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - Aspire English Hub</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="../index.html" class="nav-brand"><span class="logo-icon">🎙️</span><span>Aspire <span class="gradient-text">English Hub</span></span></a>
+        <div class="nav-links"><a href="dashboard.html" class="nav-link">← Dashboard</a></div>
+    </nav>
+
+    <div class="page">
+        <div class="container">
+            <div class="page-header animate-in">
+                <h2>📈 Your Speaking Reports</h2>
+                <p style="color:var(--text2);">Track your English speaking progress over time</p>
+            </div>
+
+            <!-- Weekly Summary -->
+            <div class="grid grid-3" id="weekly-stats" style="margin-bottom:2rem;">
+                <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value" id="r-minutes">0</div><div class="stat-label">Minutes This Week</div></div>
+                <div class="stat-card"><div class="stat-icon">📞</div><div class="stat-value" id="r-calls">0</div><div class="stat-label">Calls This Week</div></div>
+                <div class="stat-card"><div class="stat-icon">🤖</div><div class="stat-value" id="r-ai">0</div><div class="stat-label">AI Sessions</div></div>
+            </div>
+
+            <!-- Score Averages -->
+            <div class="card" style="margin-bottom:2rem;">
+                <div class="card-header"><h3 class="card-title">📊 Average Scores This Week</h3></div>
+                <div class="grid grid-4" id="avg-scores">
+                    <div style="text-align:center;"><div style="font-size:2rem;font-weight:800;color:#6C63FF;" id="avg-pron">-</div><div style="font-size:0.8rem;color:var(--text3);">Pronunciation</div></div>
+                    <div style="text-align:center;"><div style="font-size:2rem;font-weight:800;color:#43E97B;" id="avg-fluency">-</div><div style="font-size:0.8rem;color:var(--text3);">Fluency</div></div>
+                    <div style="text-align:center;"><div style="font-size:2rem;font-weight:800;color:#FA709A;" id="avg-grammar">-</div><div style="font-size:0.8rem;color:var(--text3);">Grammar</div></div>
+                    <div style="text-align:center;"><div style="font-size:2rem;font-weight:800;color:#FFBE0B;" id="avg-vocab">-</div><div style="font-size:0.8rem;color:var(--text3);">Vocabulary</div></div>
+                </div>
+            </div>
+
+            <!-- Score Bars -->
+            <div class="card" id="score-history">
+                <div class="card-header"><h3 class="card-title">📉 Recent Session Scores</h3></div>
+                <div id="score-list"><div class="loading-full"><div class="spinner"></div><span>Loading scores...</span></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        if (!Auth.requireAuth()) throw new Error('Not auth');
+
+        async function loadReports() {
+            try {
+                const report = await API.get('/api/students/reports/weekly');
+                document.getElementById('r-minutes').textContent = report.total_minutes || 0;
+                document.getElementById('r-calls').textContent = report.total_calls || 0;
+                document.getElementById('r-ai').textContent = report.total_ai_sessions || 0;
+                document.getElementById('avg-pron').textContent = report.avg_pronunciation || '-';
+                document.getElementById('avg-fluency').textContent = report.avg_fluency || '-';
+                document.getElementById('avg-grammar').textContent = report.avg_grammar || '-';
+                document.getElementById('avg-vocab').textContent = report.avg_vocabulary || '-';
+            } catch (e) { console.error(e); }
+
+            try {
+                const dashboard = await API.get('/api/students/dashboard');
+                const scores = dashboard.recent_scores || [];
+                const list = document.getElementById('score-list');
+                if (!scores.length) {
+                    list.innerHTML = '<p style="color:var(--text3);text-align:center;">No scores yet. Complete an AI session to see results!</p>';
+                    return;
+                }
+                list.innerHTML = scores.map(s => `
+                    <div style="padding:16px 0;border-bottom:1px solid var(--glass-border);">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                            <span style="font-weight:600;">Overall: ${Math.round(s.overall_score || 0)}/100</span>
+                            <span style="color:var(--text3);font-size:0.85rem;">${Utils.formatDate(s.created_at)}</span>
+                        </div>
+                        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.85rem;color:var(--text2);">
+                            <span>🗣️ ${Math.round(s.pronunciation_score || 0)}</span>
+                            <span>💬 ${Math.round(s.fluency_score || 0)}</span>
+                            <span>📝 ${Math.round(s.grammar_score || 0)}</span>
+                            <span>📚 ${Math.round(s.vocabulary_score || 0)}</span>
+                        </div>
+                        <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${s.overall_score || 0}%"></div></div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+        loadReports();
+    </script>
+</body>
+</html>

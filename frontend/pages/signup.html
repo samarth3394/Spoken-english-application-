@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Aspire English Hub</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="../index.html" class="nav-brand"><span class="logo-icon">🎙️</span><span>Aspire <span class="gradient-text">English Hub</span></span></a>
+    </nav>
+
+    <div class="auth-page page">
+        <div class="auth-card animate-in">
+            <h2>Create Account</h2>
+            <p class="subtitle">Start your English speaking journey today</p>
+            <form id="signup-form">
+                <div class="form-group">
+                    <label for="fullName">Full Name</label>
+                    <input type="text" id="fullName" placeholder="John Doe" required minlength="2">
+                </div>
+                <div class="form-group">
+                    <label for="displayName">Display Name (Anonymous)</label>
+                    <input type="text" id="displayName" placeholder="CoolSpeaker42" maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" placeholder="you@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Min 8 characters" required minlength="8">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <input type="password" id="confirmPassword" placeholder="Repeat password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;" id="signup-btn">Create Account</button>
+            </form>
+            <div class="form-footer">
+                <p>Already have an account? <a href="login.html">Sign in</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/utils.js"></script>
+    <script>
+        if (Auth.isLoggedIn()) window.location.href = 'dashboard.html';
+
+        document.getElementById('signup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pw = document.getElementById('password').value;
+            if (pw !== document.getElementById('confirmPassword').value) {
+                Utils.showToast('Passwords do not match', 'error'); return;
+            }
+            const btn = document.getElementById('signup-btn');
+            Utils.showLoading(btn, 'Creating account...');
+            try {
+                await Auth.signup(
+                    document.getElementById('email').value, pw,
+                    document.getElementById('fullName').value,
+                    document.getElementById('displayName').value || undefined
+                );
+                Utils.showToast('Account created! Welcome aboard!', 'success');
+                setTimeout(() => window.location.href = 'dashboard.html', 800);
+            } catch (err) {
+                Utils.showToast(err.message || 'Signup failed', 'error');
+                Utils.hideLoading(btn);
+            }
+        });
+    </script>
+</body>
+</html>

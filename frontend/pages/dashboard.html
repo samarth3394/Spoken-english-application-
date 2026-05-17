@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Aspire English Hub</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="../index.html" class="nav-brand"><span class="logo-icon">🎙️</span><span>Aspire <span class="gradient-text">English Hub</span></span></a>
+        <button class="nav-toggle" id="nav-toggle">☰</button>
+        <div class="nav-links" id="nav-menu"><div id="auth-links"></div></div>
+    </nav>
+
+    <div class="page">
+        <div class="dashboard">
+            <aside class="sidebar">
+                <div style="text-align:center;margin-bottom:2rem;">
+                    <div id="user-avatar" style="margin:0 auto;"></div>
+                    <h3 id="user-name" style="margin-top:12px;">Student</h3>
+                    <span class="badge badge-primary" id="user-level">Beginner</span>
+                </div>
+                <nav class="sidebar-nav">
+                    <a href="#" class="sidebar-link active" data-tab="overview"><span class="sidebar-icon">📊</span>Overview</a>
+                    <a href="waiting-room.html" class="sidebar-link"><span class="sidebar-icon">🎯</span>Find Partner</a>
+                    <a href="ai-practice.html" class="sidebar-link"><span class="sidebar-icon">🤖</span>AI Practice</a>
+                    <a href="#" class="sidebar-link" data-tab="history"><span class="sidebar-icon">📞</span>Call History</a>
+                    <a href="#" class="sidebar-link" data-tab="challenges"><span class="sidebar-icon">🏆</span>Challenges</a>
+                    <a href="#" class="sidebar-link" data-tab="leaderboard"><span class="sidebar-icon">🥇</span>Leaderboard</a>
+                    <a href="reports.html" class="sidebar-link"><span class="sidebar-icon">📈</span>Reports</a>
+                </nav>
+            </aside>
+
+            <main class="dash-content">
+                <!-- Overview Tab -->
+                <div id="tab-overview" class="tab-content active">
+                    <div class="page-header">
+                        <h2>Welcome back, <span class="gradient-text" id="greeting-name">Student</span>! 👋</h2>
+                        <p>Here's your speaking progress at a glance.</p>
+                    </div>
+
+                    <div class="grid grid-4" id="stats-grid">
+                        <div class="stat-card"><div class="stat-icon">🔥</div><div class="stat-value" id="stat-streak">0</div><div class="stat-label">Day Streak</div></div>
+                        <div class="stat-card"><div class="stat-icon">⚡</div><div class="stat-value" id="stat-xp">0</div><div class="stat-label">XP Points</div></div>
+                        <div class="stat-card"><div class="stat-icon">📞</div><div class="stat-value" id="stat-calls">0</div><div class="stat-label">Total Calls</div></div>
+                        <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value" id="stat-minutes">0</div><div class="stat-label">Minutes Spoken</div></div>
+                    </div>
+
+                    <div class="grid grid-2" style="margin-top:2rem;">
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">🎯 Quick Actions</h3></div>
+                            <div style="display:flex;flex-direction:column;gap:12px;">
+                                <a href="waiting-room.html" class="btn btn-primary" style="width:100%;">🎤 Find Speaking Partner</a>
+                                <a href="ai-practice.html" class="btn btn-secondary" style="width:100%;">🤖 Practice with AI</a>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">🏅 Recent Achievements</h3></div>
+                            <div id="achievements-list"><p style="color:var(--text3);">Complete calls to earn badges!</p></div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top:2rem;">
+                        <div class="card-header"><h3 class="card-title">📊 Weekly Progress</h3></div>
+                        <div id="weekly-chart" style="display:flex;align-items:flex-end;gap:8px;height:200px;padding-top:1rem;">
+                            <div style="flex:1;text-align:center;color:var(--text3);font-size:0.85rem;">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Tab -->
+                <div id="tab-history" class="tab-content">
+                    <div class="page-header"><h2>📞 Call History</h2></div>
+                    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Duration</th><th>Rating</th></tr></thead><tbody id="history-table"><tr><td colspan="4" style="text-align:center;color:var(--text3);">Loading...</td></tr></tbody></table></div>
+                </div>
+
+                <!-- Challenges Tab -->
+                <div id="tab-challenges" class="tab-content">
+                    <div class="page-header"><h2>🏆 Daily Challenges</h2></div>
+                    <div class="grid grid-2" id="challenges-grid"><p style="color:var(--text3);">Loading challenges...</p></div>
+                </div>
+
+                <!-- Leaderboard Tab -->
+                <div id="tab-leaderboard" class="tab-content">
+                    <div class="page-header"><h2>🥇 Leaderboard</h2><p>Top speakers this month</p></div>
+                    <div id="leaderboard-list"><div class="loading-full"><div class="spinner"></div><span>Loading...</span></div></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <button id="theme-toggle" style="position:fixed;bottom:20px;right:20px;z-index:999;width:48px;height:48px;border-radius:50%;background:var(--surface2);border:1px solid var(--glass-border);font-size:1.3rem;cursor:pointer;">🌙</button>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/websocket.js"></script>
+    <script src="../js/app.js"></script>
+    <script>
+        if (!Auth.requireAuth()) throw new Error('Not authenticated');
+
+        // Tab switching
+        document.querySelectorAll('.sidebar-link[data-tab]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tab = link.dataset.tab;
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+                document.getElementById('tab-' + tab).classList.add('active');
+                link.classList.add('active');
+                if (tab === 'history') loadHistory();
+                if (tab === 'leaderboard') loadLeaderboard();
+                if (tab === 'challenges') loadChallenges();
+            });
+        });
+
+        // Load dashboard
+        async function loadDashboard() {
+            try {
+                const data = await API.get('/api/students/dashboard');
+                const p = data.profile || {};
+                document.getElementById('user-name').textContent = p.display_name || p.full_name || 'Student';
+                document.getElementById('greeting-name').textContent = (p.display_name || p.full_name || 'Student').split(' ')[0];
+                document.getElementById('user-level').textContent = (p.proficiency_level || 'beginner').replace('_', ' ');
+                document.getElementById('user-avatar').innerHTML = Utils.getAvatar(p.display_name || p.full_name || 'S');
+                document.getElementById('stat-streak').textContent = p.current_streak || 0;
+                document.getElementById('stat-xp').textContent = (p.xp_points || 0).toLocaleString();
+                document.getElementById('stat-calls').textContent = p.total_calls || 0;
+                document.getElementById('stat-minutes').textContent = p.total_speaking_minutes || 0;
+
+                // Weekly chart
+                const weekly = data.weekly_progress || [];
+                const chart = document.getElementById('weekly-chart');
+                if (weekly.length > 0) {
+                    const maxMin = Math.max(...weekly.map(d => d.speaking_minutes || 1), 1);
+                    chart.innerHTML = weekly.map(d => {
+                        const h = Math.max(((d.speaking_minutes || 0) / maxMin) * 160, 4);
+                        const day = new Date(d.date).toLocaleDateString('en', { weekday: 'short' });
+                        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;">
+                            <span style="font-size:0.75rem;color:var(--text2);">${d.speaking_minutes || 0}m</span>
+                            <div style="width:100%;max-width:40px;height:${h}px;background:var(--gradient1);border-radius:6px 6px 0 0;"></div>
+                            <span style="font-size:0.75rem;color:var(--text3);">${day}</span>
+                        </div>`;
+                    }).join('');
+                } else {
+                    chart.innerHTML = '<div style="flex:1;text-align:center;color:var(--text3);">Start speaking to see your weekly progress!</div>';
+                }
+
+                // Achievements
+                const achList = document.getElementById('achievements-list');
+                if (data.recent_achievements?.length) {
+                    achList.innerHTML = data.recent_achievements.map(a => {
+                        const ach = a.achievements || {};
+                        return `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;"><span style="font-size:1.5rem;">${ach.icon || '🏅'}</span><div><strong>${ach.name || 'Achievement'}</strong><br><span style="font-size:0.8rem;color:var(--text3);">${ach.description || ''}</span></div></div>`;
+                    }).join('');
+                }
+            } catch (err) {
+                console.error('Dashboard load error:', err);
+            }
+        }
+
+        async function loadHistory() {
+            try {
+                const data = await API.get('/api/students/calls/history');
+                const tbody = document.getElementById('history-table');
+                if (!data?.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text3);">No calls yet. Start practicing!</td></tr>'; return; }
+                tbody.innerHTML = data.map(c => `<tr>
+                    <td>${Utils.formatDate(c.started_at)}</td>
+                    <td><span class="badge ${c.call_type==='ai'?'badge-primary':'badge-success'}">${c.call_type}</span></td>
+                    <td>${Utils.formatDuration(c.duration_seconds)}</td>
+                    <td>${c.caller_rating ? '⭐'.repeat(c.caller_rating) : '-'}</td>
+                </tr>`).join('');
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadLeaderboard() {
+            try {
+                const data = await API.get('/api/students/leaderboard');
+                const list = document.getElementById('leaderboard-list');
+                if (!data?.length) { list.innerHTML = '<p style="color:var(--text3);text-align:center;">No data yet.</p>'; return; }
+                list.innerHTML = data.map((u, i) => `<div class="leaderboard-item">
+                    <span class="lb-rank ${i<3?'top-'+(i+1):''}">${i < 3 ? ['🥇','🥈','🥉'][i] : '#'+(i+1)}</span>
+                    ${Utils.getAvatar(u.display_name || 'S')}
+                    <div class="lb-info"><div class="lb-name">${Utils.sanitize(u.display_name || 'Anonymous')}</div><div class="lb-stats">${u.current_streak || 0}🔥 streak · ${u.total_calls || 0} calls</div></div>
+                    <span class="lb-xp">${(u.xp_points || 0).toLocaleString()} XP</span>
+                </div>`).join('');
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadChallenges() {
+            try {
+                const data = await API.get('/api/students/dashboard');
+                const grid = document.getElementById('challenges-grid');
+                const challenges = data.active_challenges || [];
+                if (!challenges.length) { grid.innerHTML = '<p style="color:var(--text3);">No active challenges. Check back tomorrow!</p>'; return; }
+                grid.innerHTML = challenges.map(c => {
+                    const ch = c.challenges || {};
+                    return `<div class="card"><h3>${ch.title || 'Challenge'}</h3><p style="color:var(--text2);margin:8px 0;font-size:0.9rem;">${ch.description || ''}</p>
+                    <div class="progress-bar"><div class="progress-fill" style="width:${c.progress || 0}%"></div></div>
+                    <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:0.8rem;color:var(--text3);"><span>${c.progress || 0}%</span><span>+${ch.xp_reward || 0} XP</span></div></div>`;
+                }).join('');
+            } catch (err) { console.error(err); }
+        }
+
+        WS.connect();
+        loadDashboard();
+    </script>
+</body>
+</html>
